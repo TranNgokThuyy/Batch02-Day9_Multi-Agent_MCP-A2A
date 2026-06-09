@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 CUSTOMER_AGENT_URL = os.getenv("CUSTOMER_AGENT_URL", "http://localhost:10100")
+REQUEST_TIMEOUT_SECONDS = float(os.getenv("A2A_REQUEST_TIMEOUT", "600"))
 
 QUESTION = (
     "If a company breaks a contract and avoids taxes, "
@@ -25,7 +26,8 @@ async def main() -> None:
     print(f"Question: {QUESTION}")
     print("-" * 60)
 
-    async with httpx.AsyncClient(timeout=300.0) as http_client:
+    timeout = httpx.Timeout(REQUEST_TIMEOUT_SECONDS, connect=30.0)
+    async with httpx.AsyncClient(timeout=timeout) as http_client:
         # Resolve agent card
         card_url = f"{CUSTOMER_AGENT_URL}/.well-known/agent.json"
         try:
@@ -60,8 +62,15 @@ async def main() -> None:
             params=MSP(message=message),
         )
 
-        print("Sending request (this may take 30-60s while agents chain)...\n")
-        response = await client.send_message(request)
+        print("Sending request (this may take 30-120s while agents chain)...\n")
+        try:
+            response = await client.send_message(request)
+        except Exception as exc:
+            print("ERROR: Customer Agent did not return a response in time.")
+            print(f"  {exc}")
+            print("Restart all services so they load the latest timeout/fallback fixes.")
+            print("If you use a free model, you can also set A2A_REQUEST_TIMEOUT=900.")
+            sys.exit(1)
 
         # Parse response
         result_text = ""

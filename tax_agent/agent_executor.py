@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from uuid import uuid4
 
@@ -15,6 +16,7 @@ from a2a.types import Part, TextPart
 from tax_agent.graph import create_graph
 
 logger = logging.getLogger(__name__)
+AGENT_TIMEOUT_SECONDS = 60
 
 _graph = None
 
@@ -48,9 +50,12 @@ class TaxAgentExecutor(AgentExecutor):
         await updater.start_work()
 
         try:
-            result = await _get_graph().ainvoke(
-                {"messages": [HumanMessage(content=question)]},
-                config={"configurable": {"thread_id": context_id}},
+            result = await asyncio.wait_for(
+                _get_graph().ainvoke(
+                    {"messages": [HumanMessage(content=question)]},
+                    config={"configurable": {"thread_id": context_id}},
+                ),
+                timeout=AGENT_TIMEOUT_SECONDS,
             )
 
             # Extract the last AI message
@@ -72,11 +77,21 @@ class TaxAgentExecutor(AgentExecutor):
 
         except Exception as exc:
             logger.exception("TaxAgent execution error: %s", exc)
-            await updater.failed(
-                updater.new_agent_message(
-                    parts=[Part(root=TextPart(text=f"Tax analysis failed: {exc}"))]
-                )
+            await updater.add_artifact(
+                parts=[
+                    Part(
+                        root=TextPart(
+                            text=(
+                                "Tax analysis unavailable or timed out. Review potential tax "
+                                "evasion, back taxes, penalties, interest, and responsible-person "
+                                "liability with a licensed tax professional."
+                            )
+                        )
+                    )
+                ],
+                name="tax_analysis_fallback",
             )
+            await updater.complete()
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
         task_id = context.task_id or str(uuid4())

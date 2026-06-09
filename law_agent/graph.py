@@ -1,15 +1,15 @@
 """Law Agent LangGraph StateGraph definition.
 
 Graph topology:
-    analyze_law → check_routing → (parallel) call_tax + call_compliance → aggregate → END
+    analyze_law -> check_routing -> (parallel) call_tax + call_compliance -> aggregate -> END
 
-The parallel branches (call_tax / call_compliance) are dispatched via LangGraph's
-Send API so that both sub-agent calls happen concurrently.
+The parallel branches are dispatched via LangGraph's Send API so that
+specialist sub-agent calls happen concurrently.
 """
 
 from __future__ import annotations
 
-import json
+import asyncio
 import logging
 from typing import Annotated, TypedDict
 
@@ -22,11 +22,8 @@ from common.llm import get_llm
 logger = logging.getLogger(__name__)
 
 MAX_DELEGATION_DEPTH = 3
+LLM_TIMEOUT_SECONDS = 45
 
-
-# ---------------------------------------------------------------------------
-# State definition
-# ---------------------------------------------------------------------------
 
 def _last_wins(a: str, b: str) -> str:
     """Reducer: keep the most recently written value."""
@@ -41,93 +38,77 @@ class LawState(TypedDict):
     law_analysis: str
     needs_tax: bool
     needs_compliance: bool
-    # Annotated so parallel branches can both write without conflict
     tax_result: Annotated[str, _last_wins]
     compliance_result: Annotated[str, _last_wins]
     final_answer: str
 
 
-# ---------------------------------------------------------------------------
-# Node implementations
-# ---------------------------------------------------------------------------
+async def _ask_llm(messages: list, fallback: str) -> str:
+    """Call the LLM with a bounded wait so A2A requests do not hang."""
+    try:
+        result = await asyncio.wait_for(
+            get_llm().ainvoke(messages),
+            timeout=LLM_TIMEOUT_SECONDS,
+        )
+        return result.content
+    except Exception as exc:
+        logger.warning("LLM call failed or timed out: %s", exc)
+        return f"{fallback}\n\n[Fallback used because the LLM was unavailable or too slow: {exc}]"
+
 
 async def analyze_law(state: LawState) -> dict:
     """LLM analysis from a contract / general law perspective."""
-    llm = get_llm()
     messages = [
         SystemMessage(
             content=(
                 "You are a senior corporate litigation attorney specialising in contract law, "
                 "tort law, and general business law. Analyse the legal aspects of the question "
-                "thoroughly, covering relevant statutes, case law principles, and liability exposure."
+                "thoroughly, covering relevant statutes, case law principles, and liability exposure. "
+                "Keep the response under 180 words."
             )
         ),
         HumanMessage(content=state["question"]),
     ]
-    result = await llm.ainvoke(messages)
-    return {"law_analysis": result.content}
+    fallback = (
+        "Contract breaches can create exposure for expectation damages, foreseeable "
+        "consequential damages, specific performance in limited cases, injunctions, "
+        "and attorney-fee shifting if the contract or statute allows it."
+    )
+    return {"law_analysis": await _ask_llm(messages, fallback)}
 
 
 async def check_routing(state: LawState) -> dict:
-    """Determine whether tax and/or compliance sub-agents are needed.
-
-    Returns updated state flags so the routing function can read them.
-    If delegation depth is already at the max, skip further delegation.
-    """
+    """Determine whether tax and/or compliance sub-agents are needed."""
     depth = state.get("delegation_depth", 0)
     if depth >= MAX_DELEGATION_DEPTH:
         logger.info("Max delegation depth reached (%d); skipping sub-agents", depth)
         return {"needs_tax": False, "needs_compliance": False}
 
-    llm = get_llm()
-    messages = [
-        SystemMessage(
-            content=(
-                'You are a legal routing expert. Based on the question, decide whether '
-                'specialist sub-agents are needed.\n'
-                'Reply with ONLY valid JSON — no markdown, no extra text:\n'
-                '{"needs_tax": <true|false>, "needs_compliance": <true|false>}\n\n'
-                'needs_tax = true  → question involves tax law, IRS, tax evasion, penalties\n'
-                'needs_compliance = true → question involves regulatory compliance, SEC, SOX, AML, FCPA'
-            )
-        ),
-        HumanMessage(content=state["question"]),
-    ]
-    result = await llm.ainvoke(messages)
-    raw = result.content.strip()
-
-    # Strip markdown code fences if present
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-        raw = raw.strip()
-
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError:
-        logger.warning("Routing LLM returned non-JSON: %r — defaulting to both=True", raw)
-        parsed = {"needs_tax": True, "needs_compliance": True}
-
-    needs_tax = bool(parsed.get("needs_tax", True))
-    needs_compliance = bool(parsed.get("needs_compliance", True))
-    logger.info("Routing decision: needs_tax=%s needs_compliance=%s", needs_tax, needs_compliance)
+    question_lower = state["question"].lower()
+    needs_tax = any(
+        kw in question_lower
+        for kw in ["tax", "irs", "revenue", "fbar", "fatca", "thuế", "avoids taxes"]
+    )
+    needs_compliance = any(
+        kw in question_lower
+        for kw in ["compliance", "regulatory", "regulation", "sec", "sox", "aml", "fcpa"]
+    )
+    logger.info(
+        "Routing decision: needs_tax=%s needs_compliance=%s",
+        needs_tax,
+        needs_compliance,
+    )
     return {"needs_tax": needs_tax, "needs_compliance": needs_compliance}
 
 
 def route_to_subagents(state: LawState) -> list[Send]:
-    """Routing function: dispatch parallel Send objects based on routing flags.
-
-    This function is used with add_conditional_edges; it returns a list of
-    Send objects which LangGraph executes as parallel branches.
-    """
+    """Dispatch parallel Send objects based on routing flags."""
     sends: list[Send] = []
     if state.get("needs_tax"):
         sends.append(Send("call_tax", state))
     if state.get("needs_compliance"):
         sends.append(Send("call_compliance", state))
     if not sends:
-        # No sub-agents needed — go straight to aggregation
         sends.append(Send("aggregate", state))
     return sends
 
@@ -175,9 +156,7 @@ async def call_compliance(state: LawState) -> dict:
 
 
 async def aggregate(state: LawState) -> dict:
-    """Combine law_analysis, tax_result, and compliance_result into a final answer."""
-    llm = get_llm()
-
+    """Combine law, tax, and compliance analyses into a final answer."""
     sections: list[str] = []
     if state.get("law_analysis"):
         sections.append(f"## Legal Analysis\n{state['law_analysis']}")
@@ -194,19 +173,19 @@ async def aggregate(state: LawState) -> dict:
                 "You are a senior legal counsel synthesising specialist analyses into a "
                 "comprehensive, well-structured response for the client. Combine the following "
                 "analyses into a cohesive answer with clear sections. Avoid redundancy. "
-                "End with a brief disclaimer that the analysis is educational and the client "
-                "should consult licensed attorneys for their specific situation."
+                "Keep the response under 350 words and end with a brief educational disclaimer."
             )
         ),
         HumanMessage(content=combined),
     ]
-    result = await llm.ainvoke(messages)
-    return {"final_answer": result.content}
+    fallback = (
+        f"{combined}\n\n"
+        "## Practical Next Steps\n"
+        "Preserve documents, quantify damages, review reporting duties, evaluate tax exposure, "
+        "and consult licensed counsel before making admissions or settlement offers."
+    )
+    return {"final_answer": await _ask_llm(messages, fallback)}
 
-
-# ---------------------------------------------------------------------------
-# Graph construction
-# ---------------------------------------------------------------------------
 
 def create_graph():
     """Build and compile the Law Agent StateGraph."""
@@ -220,15 +199,11 @@ def create_graph():
 
     graph.set_entry_point("analyze_law")
     graph.add_edge("analyze_law", "check_routing")
-
-    # Conditional parallel dispatch: after check_routing, route_to_subagents
-    # returns a list of Send objects (to call_tax, call_compliance, or aggregate)
     graph.add_conditional_edges(
         "check_routing",
         route_to_subagents,
         ["call_tax", "call_compliance", "aggregate"],
     )
-
     graph.add_edge("call_tax", "aggregate")
     graph.add_edge("call_compliance", "aggregate")
     graph.add_edge("aggregate", END)

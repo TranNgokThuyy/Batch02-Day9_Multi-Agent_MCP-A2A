@@ -32,6 +32,9 @@ When answering, be precise about:
 
 Always note that your response is for educational purposes and the user
 should consult a licensed attorney for specific legal advice.
+
+Keep responses concise: use 3-5 short bullets, avoid repeated background,
+and focus only on the most important penalties, agencies, and next steps.
 """
 
 
