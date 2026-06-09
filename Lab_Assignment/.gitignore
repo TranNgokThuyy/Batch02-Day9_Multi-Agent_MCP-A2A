@@ -1,0 +1,44 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python caches and build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Notebook and editor noise
+.ipynb_checkpoints/
+.vscode/
+.idea/
+
+# Local runtime / crawler state
+.crawl4ai_runtime/
+.c4a_runtime/
+
+# Streamlit local config
+.streamlit/secrets.toml
+
+# Windows / OS noise
+Thumbs.db
+Desktop.ini
+
+# Local temporary test cache folders created in this workspace
+pytest-cache-files-*/

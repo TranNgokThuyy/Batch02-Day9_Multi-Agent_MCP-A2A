@@ -1,0 +1,77 @@
+[
+  {
+    "question": "Hình phạt cho tội tàng trữ trái phép chất ma túy theo Bộ luật Hình sự?",
+    "expected_answer": "Tùy loại chất, khối lượng và tình tiết, người phạm tội tàng trữ trái phép chất ma túy có thể bị phạt tù theo Điều 249 Bộ luật Hình sự.",
+    "expected_context": "Bộ luật Hình sự 2015, Điều 249"
+  },
+  {
+    "question": "Luật Phòng chống ma túy 2021 quy định những hình thức cai nghiện nào?",
+    "expected_answer": "Có cai nghiện tự nguyện tại gia đình, cộng đồng, cơ sở cai nghiện và cai nghiện bắt buộc tại cơ sở cai nghiện.",
+    "expected_context": "Luật Phòng chống ma túy 2021, Chương V"
+  },
+  {
+    "question": "Nghị định 105/2021/NĐ-CP hướng dẫn nội dung gì?",
+    "expected_answer": "Nghị định hướng dẫn về cai nghiện ma túy, quản lý sau cai nghiện, xác định tình trạng nghiện và trách nhiệm của cơ quan, tổ chức.",
+    "expected_context": "Nghị định 105/2021/NĐ-CP"
+  },
+  {
+    "question": "Điều 251 Bộ luật Hình sự liên quan đến hành vi nào?",
+    "expected_answer": "Điều 251 liên quan đến tội mua bán trái phép chất ma túy.",
+    "expected_context": "Bộ luật Hình sự 2015, Điều 251"
+  },
+  {
+    "question": "Điều 248 Bộ luật Hình sự liên quan đến hành vi nào?",
+    "expected_answer": "Điều 248 liên quan đến tội sản xuất trái phép chất ma túy.",
+    "expected_context": "Bộ luật Hình sự 2015, Điều 248"
+  },
+  {
+    "question": "Vì sao cần citation trong RAG pháp luật?",
+    "expected_answer": "Citation giúp người dùng kiểm tra lại nguồn văn bản và giảm nguy cơ mô hình suy đoán sai nội dung pháp lý.",
+    "expected_context": "README Task 10"
+  },
+  {
+    "question": "Khi nào pipeline fallback sang PageIndex/vectorless?",
+    "expected_answer": "Khi hybrid search không có kết quả hoặc score tốt nhất thấp hơn ngưỡng cấu hình, pipeline dùng fallback PageIndex/vectorless.",
+    "expected_context": "README Task 9"
+  },
+  {
+    "question": "BM25 tìm kiếm dựa trên nguyên lý nào?",
+    "expected_answer": "BM25 dựa trên tần suất từ, độ hiếm của từ và chuẩn hóa độ dài tài liệu để chấm điểm truy vấn theo từ khóa.",
+    "expected_context": "Task 6"
+  },
+  {
+    "question": "Reranking dùng để làm gì trong RAG?",
+    "expected_answer": "Reranking chấm lại các ứng viên retrieval để đưa chunk liên quan nhất lên đầu trước khi sinh câu trả lời.",
+    "expected_context": "Task 7"
+  },
+  {
+    "question": "Lost in the middle là vấn đề gì?",
+    "expected_answer": "LLM thường chú ý tốt hơn phần đầu và cuối context, nên cần reorder để tránh thông tin quan trọng bị đặt giữa prompt.",
+    "expected_context": "Task 10"
+  },
+  {
+    "question": "Tin tức về nghệ sĩ liên quan ma túy cần xử lý cẩn trọng thế nào?",
+    "expected_answer": "Cần dựa vào nguồn báo và kết luận chính thức, tránh suy đoán hoặc khẳng định vượt quá evidence.",
+    "expected_context": "News corpus"
+  },
+  {
+    "question": "Người nổi tiếng có ngoại lệ khi vi phạm pháp luật về ma túy không?",
+    "expected_answer": "Không; nguyên tắc chung là mọi cá nhân đều phải chịu trách nhiệm theo pháp luật nếu có hành vi vi phạm.",
+    "expected_context": "News corpus"
+  },
+  {
+    "question": "Tài liệu pháp luật được lưu ở thư mục nào?",
+    "expected_answer": "File gốc được lưu ở data/landing/legal và file markdown chuẩn hóa ở data/standardized/legal.",
+    "expected_context": "README Task 1-3"
+  },
+  {
+    "question": "Bài báo crawl được lưu theo format nào?",
+    "expected_answer": "Mỗi bài báo được lưu thành JSON có metadata URL, tiêu đề, ngày crawl và nội dung markdown.",
+    "expected_context": "README Task 2"
+  },
+  {
+    "question": "Pipeline retrieval hoàn chỉnh gồm các bước nào?",
+    "expected_answer": "Pipeline chạy semantic search, lexical search, merge bằng RRF, rerank, sau đó fallback vectorless nếu kết quả chưa đủ tốt.",
+    "expected_context": "README Task 9"
+  }
+]
